@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: api-gateway
+  name: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: api-gateway
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o k8s/
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: api-gateway
+    spec:
+      containers:
+        - env:
+            - name: SERVER_PORT
+              value: "2021"
+            - name: SPRING_APPLICATION_JSON
+              value: |
+                {
+                  "eureka": {
+                    "client": { "serviceUrl": { "defaultZone": "http://eureka-server:8761/eureka" } }
+                  },
+                  "spring": {
+                    "cloud": {
+                      "gateway": {
+                        "discovery": { "locator": { "enabled": true, "lowerCaseServiceId": true } },
+                        "routes": [
+                          { "id": "pilot",
+                            "uri": "lb://AIRPORT-PILOT-SERVICE",
+                            "predicates": ["Path=/airport-pilot-service/**"],
+                            "filters": ["RewritePath=/airport-pilot-service/(?<segment>.*), /${segment}"]
+                          },
+                          { "id": "flight",
+                            "uri": "lb://AIRPORT-FLIGHT-SERVICE",
+                            "predicates": ["Path=/airport-flight-service/**"],
+                            "filters": ["RewritePath=/airport-flight-service/(?<segment>.*), /${segment}"]
+                          },
+                          { "id": "bookings",
+                            "uri": "lb://AIRPORT-BOOKINGS-SERVICE",
+                            "predicates": ["Path=/airport-bookings-service/**"],
+                            "filters": ["RewritePath=/airport-bookings-service/(?<segment>.*), /${segment}"]
+                          },
+                          { "id": "security",
+                            "uri": "lb://AIRPORT-SECURITY-SERVICE",
+                            "predicates": ["Path=/airport-security-service/**"],
+                            "filters": ["RewritePath=/airport-security-service/(?<segment>.*), /${segment}"]
+                          },
+                          { "id": "checkin",
+                            "uri": "lb://AIRPORT-CHECKIN-SERVICE",
+                            "predicates": ["Path=/airport-checkin-service/**"],
+                            "filters": ["RewritePath=/airport-checkin-service/(?<segment>.*), /${segment}"]
+                          },
+                          { "id": "boarding",
+                            "uri": "lb://AIRPORT-BOARDING-SERVICE",
+                            "predicates": ["Path=/airport-boarding-service/**"],
+                            "filters": ["RewritePath=/airport-boarding-service/(?<segment>.*), /${segment}"]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "management": {
+                    "endpoints": { "web": { "exposure": { "include": "health,info,gateway" } } }
+                  }
+                }
+            - name: TZ
+              value: Europe/Chisinau
+          image: api-gateway
+          name: api-gateway
+          ports:
+            - containerPort: 2021
+              protocol: TCP
+      restartPolicy: Always

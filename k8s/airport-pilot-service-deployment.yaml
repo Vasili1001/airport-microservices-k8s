@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml -o k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: airport-pilot-service
+  name: airport-pilot-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: airport-pilot-service
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert -f docker-compose.yml -o k8s/
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: airport-pilot-service
+    spec:
+      containers:
+        - env:
+            - name: SERVER_PORT
+              value: "8081"
+            - name: SPRING_APPLICATION_JSON
+              value: |
+                {
+                  "spring":{
+                    "application":{"name":"airport-pilot-service"},
+                    "datasource":{"url":"jdbc:mysql://mysql:3306/airportdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC","username":"root","password":"root"}
+                  },
+                  "eureka":{"client":{"serviceUrl":{"defaultZone":"http://eureka-server:8761/eureka"}},"instance":{"preferIpAddress":true}}
+                }
+            - name: TZ
+              value: Europe/Chisinau
+          image: airport-pilot-service
+          name: airport-pilot-service
+          ports:
+            - containerPort: 8081
+              protocol: TCP
+      restartPolicy: Always

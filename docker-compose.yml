@@ -1,0 +1,245 @@
+version: "3.9"
+
+name: airport-microservices
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: airportdb
+      TZ: Europe/Chisinau
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./airportdb.sql:/docker-entrypoint-initdb.d/airportdb.sql:ro
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks: [airport]
+
+  eureka-server:
+    build: ./eureka-server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      TZ: Europe/Chisinau
+      SERVER_PORT: "8761"
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
+      EUREKA_CLIENT_FETCH_REGISTRY: "false"
+      EUREKA_INSTANCE_HOSTNAME: eureka-server
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [airport]
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "2021:2021"
+    environment:
+      TZ: Europe/Chisinau
+      SERVER_PORT: "2021"
+      SPRING_APPLICATION_JSON: >
+        {
+          "eureka": {
+            "client": { "serviceUrl": { "defaultZone": "http://eureka-server:8761/eureka" } }
+          },
+          "spring": {
+            "cloud": {
+              "gateway": {
+                "discovery": { "locator": { "enabled": true, "lowerCaseServiceId": true } },
+                "routes": [
+                  { "id": "pilot",
+                    "uri": "lb://AIRPORT-PILOT-SERVICE",
+                    "predicates": ["Path=/airport-pilot-service/**"],
+                    "filters": ["RewritePath=/airport-pilot-service/(?<segment>.*), /$${segment}"]
+                  },
+                  { "id": "flight",
+                    "uri": "lb://AIRPORT-FLIGHT-SERVICE",
+                    "predicates": ["Path=/airport-flight-service/**"],
+                    "filters": ["RewritePath=/airport-flight-service/(?<segment>.*), /$${segment}"]
+                  },
+                  { "id": "bookings",
+                    "uri": "lb://AIRPORT-BOOKINGS-SERVICE",
+                    "predicates": ["Path=/airport-bookings-service/**"],
+                    "filters": ["RewritePath=/airport-bookings-service/(?<segment>.*), /$${segment}"]
+                  },
+                  { "id": "security",
+                    "uri": "lb://AIRPORT-SECURITY-SERVICE",
+                    "predicates": ["Path=/airport-security-service/**"],
+                    "filters": ["RewritePath=/airport-security-service/(?<segment>.*), /$${segment}"]
+                  },
+                  { "id": "checkin",
+                    "uri": "lb://AIRPORT-CHECKIN-SERVICE",
+                    "predicates": ["Path=/airport-checkin-service/**"],
+                    "filters": ["RewritePath=/airport-checkin-service/(?<segment>.*), /$${segment}"]
+                  },
+                  { "id": "boarding",
+                    "uri": "lb://AIRPORT-BOARDING-SERVICE",
+                    "predicates": ["Path=/airport-boarding-service/**"],
+                    "filters": ["RewritePath=/airport-boarding-service/(?<segment>.*), /$${segment}"]
+                  }
+                ]
+              }
+            }
+          },
+          "management": {
+            "endpoints": { "web": { "exposure": { "include": "health,info,gateway" } } }
+          }
+        }
+    depends_on:
+      eureka-server:
+        condition: service_started
+    networks: [airport]
+
+  airport-pilot-service:
+    build: ./airport-pilot-service
+    container_name: airport-pilot-service
+    ports:
+      - "8081:8081"
+    environment:
+      TZ: Europe/Chisinau
+      SERVER_PORT: "8081"
+      SPRING_APPLICATION_JSON: >
+        {
+          "spring":{
+            "application":{"name":"airport-pilot-service"},
+            "datasource":{"url":"jdbc:mysql://mysql:3306/airportdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC","username":"root","password":"root"}
+          },
+          "eureka":{"client":{"serviceUrl":{"defaultZone":"http://eureka-server:8761/eureka"}},"instance":{"preferIpAddress":true}}
+        }
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    networks: [airport]
+
+  airport-flight-service:
+    build: ./airport-flight-service
+    container_name: airport-flight-service
+    ports:
+      - "8082:8082"
+    environment:
+      TZ: Europe/Chisinau
+      SERVER_PORT: "8082"
+      SPRING_APPLICATION_JSON: >
+        {
+          "spring":{
+            "application":{"name":"airport-flight-service"},
+            "datasource":{"url":"jdbc:mysql://mysql:3306/airportdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC","username":"root","password":"root"}
+          },
+          "eureka":{"client":{"serviceUrl":{"defaultZone":"http://eureka-server:8761/eureka"}},"instance":{"preferIpAddress":true}}
+        }
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    networks: [airport]
+
+  airport-bookings-service:
+    build: ./airport-bookings-service
+    container_name: airport-bookings-service
+    ports:
+      - "8083:8083"
+    environment:
+      TZ: Europe/Chisinau
+      SERVER_PORT: "8083"
+      SPRING_APPLICATION_JSON: >
+        {
+          "spring":{
+            "application":{"name":"airport-bookings-service"},
+            "datasource":{"url":"jdbc:mysql://mysql:3306/airportdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC","username":"root","password":"root"}
+          },
+          "eureka":{"client":{"serviceUrl":{"defaultZone":"http://eureka-server:8761/eureka"}},"instance":{"preferIpAddress":true}}
+        }
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    networks: [airport]
+
+  airport-security-service:
+    build: ./airport-checking-service
+    container_name: airport-security-service
+    ports:
+      - "8084:8084"
+    environment:
+      TZ: Europe/Chisinau
+      SERVER_PORT: "8084"
+      SPRING_APPLICATION_JSON: >
+        {
+          "spring":{
+            "application":{"name":"airport-security-service"},
+            "datasource":{"url":"jdbc:mysql://mysql:3306/airportdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC","username":"root","password":"root"}
+          },
+          "eureka":{"client":{"serviceUrl":{"defaultZone":"http://eureka-server:8761/eureka"}},"instance":{"preferIpAddress":true}}
+        }
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    networks: [airport]
+
+  airport-checkin-service:
+    build: ./airport-checkin-service
+    container_name: airport-checkin-service
+    ports:
+      - "8085:8085"
+    environment:
+      TZ: Europe/Chisinau
+      SERVER_PORT: "8085"
+      SPRING_APPLICATION_JSON: >
+        {
+          "spring":{
+            "application":{"name":"airport-checkin-service"},
+            "datasource":{"url":"jdbc:mysql://mysql:3306/airportdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC","username":"root","password":"root"}
+          },
+          "eureka":{"client":{"serviceUrl":{"defaultZone":"http://eureka-server:8761/eureka"}},"instance":{"preferIpAddress":true}}
+        }
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    networks: [airport]
+
+  airport-boarding-service:
+    build: ./airport-boarding-service
+    container_name: airport-boarding-service
+    ports:
+      - "8086:8086"
+    environment:
+      TZ: Europe/Chisinau
+      SERVER_PORT: "8086"
+      SPRING_APPLICATION_JSON: >
+        {
+          "spring":{
+            "application":{"name":"airport-boarding-service"},
+            "datasource":{"url":"jdbc:mysql://mysql:3306/airportdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC","username":"root","password":"root"}
+          },
+          "eureka":{"client":{"serviceUrl":{"defaultZone":"http://eureka-server:8761/eureka"}},"instance":{"preferIpAddress":true}}
+        }
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql:
+        condition: service_healthy
+    networks: [airport]
+
+networks:
+  airport:
+
+volumes:
+  mysql_data:
