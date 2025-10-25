@@ -1,14 +1,15 @@
 package com.airport.checkin;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
+import com.airport.checkin.controller.CheckinController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
-import com.airport.checkin.controller.CheckinController;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@ActiveProfiles("test")
 class AirportCheckinServiceApplicationTests {
 
 	@Autowired
